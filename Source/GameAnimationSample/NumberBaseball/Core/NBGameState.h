@@ -2,6 +2,7 @@
 
 #include "GameFramework/GameplayMessageSubsystem.h"
 #include "GameFramework/GameState.h"
+#include "GameAnimationSample/NumberBaseball/Struct/NBPendingTask.h"
 #include "NBTypes.h"
 #include "NBGameState.generated.h"
 
@@ -34,6 +35,7 @@ public:
 	void SetRoundState(int32 NewCurrentRound, int32 NewTotalRoundCount);
 	void SetUserInputEndServerTime(float EndServerTime);
 	void SetLastAnswerCorrect(bool bIsCorrect);
+	void SetPendingTaskState(const FNBPendingTaskState& NewPendingTaskState);
 
 	UFUNCTION(BlueprintPure, Category = "Number Baseball|Game State")
 	ENBGamePhase GetCurrentGamePhase() const { return CurrentGamePhase; }
@@ -59,6 +61,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Number Baseball|Game State")
 	bool IsLastAnswerCorrect() const { return bLastAnswerCorrect; }
 
+	UFUNCTION(BlueprintPure, Category = "PendingTask")
+	FNBPendingTaskState GetPendingTaskState() const { return PendingTaskState; }
+
 private:
 	void HandleInputSubmitted(FGameplayTag Channel, const FNBInputMessage& Message);
 
@@ -70,6 +75,9 @@ private:
 
 	UFUNCTION()
 	void OnRep_CurrentInputValues();
+
+	UFUNCTION()
+	void OnRep_PendingTaskState();
 
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentGamePhase)
 	ENBGamePhase CurrentGamePhase = ENBGamePhase::WaitingForReady;
@@ -94,6 +102,9 @@ private:
 
 	UPROPERTY(Replicated)
 	bool bLastAnswerCorrect = false;
+
+	UPROPERTY(ReplicatedUsing = OnRep_PendingTaskState)
+	FNBPendingTaskState PendingTaskState;
 
 	FGameplayMessageListenerHandle InputSubmittedListenerHandle;
 };

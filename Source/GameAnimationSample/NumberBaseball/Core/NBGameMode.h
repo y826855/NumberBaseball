@@ -6,6 +6,7 @@
 
 class APlayerState;
 class UNBGameFlowComponent;
+class UNBPendingTaskComponent;
 class UNBPlayerRegistryComponent;
 
 UCLASS()
@@ -21,10 +22,14 @@ public:
 
 	void SetPlayerReady(APlayerState* PlayerState, bool bIsReady);
 	void ForceStartGame();
+	UNBPendingTaskComponent* GetPendingTaskComponent() const { return PendingTaskComponent; }
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Number Baseball")
 	TObjectPtr<UNBGameFlowComponent> GameFlowComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "PendingTask")
+	TObjectPtr<UNBPendingTaskComponent> PendingTaskComponent;
 
 private:
 	void EvaluateGamePhase();

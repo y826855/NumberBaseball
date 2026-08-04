@@ -34,6 +34,7 @@ void ANBGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(ThisClass, TotalRoundCount);
 	DOREPLIFETIME(ThisClass, UserInputEndServerTime);
 	DOREPLIFETIME(ThisClass, bLastAnswerCorrect);
+	DOREPLIFETIME(ThisClass, PendingTaskState);
 }
 
 void ANBGameState::SetCurrentGamePhase(ENBGamePhase NewGamePhase)
@@ -104,6 +105,15 @@ void ANBGameState::SetLastAnswerCorrect(bool bIsCorrect)
 	}
 }
 
+void ANBGameState::SetPendingTaskState(const FNBPendingTaskState& NewPendingTaskState)
+{
+	if (HasAuthority())
+	{
+		PendingTaskState = NewPendingTaskState;
+		OnRep_PendingTaskState();
+	}
+}
+
 float ANBGameState::GetRemainingUserInputTime() const
 {
 	if (CurrentTurnPhase != ENBTurnPhase::UserInputTurn)
@@ -158,4 +168,11 @@ void ANBGameState::OnRep_CurrentInputValues()
 	UGameplayMessageSubsystem::Get(this).BroadcastMessage(
 		NBGameplayMessages::InputValuesChanged,
 		Message);
+}
+
+void ANBGameState::OnRep_PendingTaskState()
+{
+	UGameplayMessageSubsystem::Get(this).BroadcastMessage(
+		NBGameplayMessages::PendingTaskChanged,
+		PendingTaskState);
 }

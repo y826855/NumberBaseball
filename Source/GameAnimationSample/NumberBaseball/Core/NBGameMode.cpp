@@ -1,18 +1,22 @@
 #include "NBGameMode.h"
 
 #include "Components/NBGameFlowComponent.h"
+#include "Components/NBPendingTaskComponent.h"
 #include "Components/NBPlayerRegistryComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "NBGameState.h"
+#include "GameAnimationSample/NumberBaseball/PlayerController/NBPlayerController.h"
 
 ANBGameMode::ANBGameMode()
 {
 	bDelayedStart = false;
 	GameStateClass = ANBGameState::StaticClass();
+	PlayerControllerClass = ANBPlayerController::StaticClass();
 
 	PlayerRegistryComponent = CreateDefaultSubobject<UNBPlayerRegistryComponent>(TEXT("PlayerRegistryComponent"));
 	GameFlowComponent = CreateDefaultSubobject<UNBGameFlowComponent>(TEXT("GameFlowComponent"));
+	PendingTaskComponent = CreateDefaultSubobject<UNBPendingTaskComponent>(TEXT("PendingTaskComponent"));
 }
 
 void ANBGameMode::PostLogin(APlayerController* NewPlayer)
