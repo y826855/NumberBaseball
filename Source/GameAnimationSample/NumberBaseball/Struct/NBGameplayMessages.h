@@ -11,6 +11,8 @@ namespace NBGameplayMessages
 	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GamePhaseChanged);
 	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TurnPhaseChanged);
 	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputValuesChanged);
+	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(RoundStateChanged);
+	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GuessResultChanged);
 	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(PendingTaskChanged);
 }
 
@@ -48,6 +50,24 @@ struct GAMEANIMATIONSAMPLE_API FNBInputValuesChangedMessage
 
 	UPROPERTY(BlueprintReadOnly, Category = "Number Baseball")
 	TArray<int32> InputValues;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Number Baseball")
+	int32 RequiredInputCount = 0;
+};
+
+USTRUCT(BlueprintType)
+struct GAMEANIMATIONSAMPLE_API FNBRoundStateChangedMessage
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Number Baseball")
+	ENBRoundPhase RoundPhase = ENBRoundPhase::None;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Number Baseball")
+	int32 CurrentRound = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Number Baseball")
+	int32 TotalRoundCount = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Number Baseball")
 	int32 RequiredInputCount = 0;
