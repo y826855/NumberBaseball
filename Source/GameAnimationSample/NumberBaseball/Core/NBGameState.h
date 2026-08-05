@@ -2,6 +2,7 @@
 
 #include "GameFramework/GameplayMessageSubsystem.h"
 #include "GameFramework/GameState.h"
+#include "GameAnimationSample/NumberBaseball/Struct/NBGuessResult.h"
 #include "GameAnimationSample/NumberBaseball/Struct/NBPendingTask.h"
 #include "NBTypes.h"
 #include "NBGameState.generated.h"
@@ -25,6 +26,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Number Baseball|Game State")
 	void SetCurrentTurnPhase(ENBTurnPhase NewTurnPhase);
 
+	void SetCurrentRoundPhase(ENBRoundPhase NewRoundPhase);
+
 	UFUNCTION(BlueprintCallable, Category = "Number Baseball|Game State")
 	void AddInputValue(int32 Value);
 
@@ -34,7 +37,7 @@ public:
 	void SetRequiredInputCount(int32 Count);
 	void SetRoundState(int32 NewCurrentRound, int32 NewTotalRoundCount);
 	void SetUserInputEndServerTime(float EndServerTime);
-	void SetLastAnswerCorrect(bool bIsCorrect);
+	void SetLastGuessResult(const FNBGuessResult& NewGuessResult);
 	void SetPendingTaskState(const FNBPendingTaskState& NewPendingTaskState);
 
 	UFUNCTION(BlueprintPure, Category = "Number Baseball|Game State")
@@ -42,6 +45,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Number Baseball|Game State")
 	ENBTurnPhase GetCurrentTurnPhase() const { return CurrentTurnPhase; }
+
+	UFUNCTION(BlueprintPure, Category = "Number Baseball|Game State")
+	ENBRoundPhase GetCurrentRoundPhase() const { return CurrentRoundPhase; }
 
 	UFUNCTION(BlueprintPure, Category = "Number Baseball|Game State")
 	TArray<int32> GetCurrentInputValues() const { return CurrentInputValues; }
@@ -59,7 +65,15 @@ public:
 	float GetRemainingUserInputTime() const;
 
 	UFUNCTION(BlueprintPure, Category = "Number Baseball|Game State")
-	bool IsLastAnswerCorrect() const { return bLastAnswerCorrect; }
+	bool IsLastAnswerCorrect() const
+	{
+		return RequiredInputCount > 0
+			&& LastGuessResult.NumberResults.Num() == RequiredInputCount
+			&& LastGuessResult.StrikeCount == RequiredInputCount;
+	}
+
+	UFUNCTION(BlueprintPure, Category = "GuessResult")
+	FNBGuessResult GetLastGuessResult() const { return LastGuessResult; }
 
 	UFUNCTION(BlueprintPure, Category = "PendingTask")
 	FNBPendingTaskState GetPendingTaskState() const { return PendingTaskState; }
@@ -77,6 +91,12 @@ private:
 	void OnRep_CurrentInputValues();
 
 	UFUNCTION()
+	void OnRep_CurrentRoundPhase();
+
+	UFUNCTION()
+	void OnRep_LastGuessResult();
+
+	UFUNCTION()
 	void OnRep_PendingTaskState();
 
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentGamePhase)
@@ -87,6 +107,12 @@ private:
 
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentInputValues)
 	TArray<int32> CurrentInputValues;
+
+	UPROPERTY(Replicated)
+	ENBRoundPhase CurrentRoundPhase = ENBRoundPhase::None;
+
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentRoundPhase)
+	int32 RoundStateRevision = 0;
 
 	UPROPERTY(Replicated)
 	int32 RequiredInputCount = 0;
@@ -100,8 +126,8 @@ private:
 	UPROPERTY(Replicated)
 	float UserInputEndServerTime = 0.f;
 
-	UPROPERTY(Replicated)
-	bool bLastAnswerCorrect = false;
+	UPROPERTY(ReplicatedUsing = OnRep_LastGuessResult)
+	FNBGuessResult LastGuessResult;
 
 	UPROPERTY(ReplicatedUsing = OnRep_PendingTaskState)
 	FNBPendingTaskState PendingTaskState;

@@ -7,6 +7,7 @@
 
 class ANBGameState;
 struct FGameplayTag;
+struct FNBGuessResult;
 struct FNBInputValuesChangedMessage;
 
 UCLASS(ClassGroup = (NumberBaseball), meta = (BlueprintSpawnableComponent))
@@ -21,7 +22,16 @@ public:
 	void StartGameFlow();
 
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+	void StartNextRound();
+
+	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void StartRound();
+
+	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+	void BeginRound();
+
+	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+	void StartTurn();
 
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void StartUserInputTurn();
@@ -36,6 +46,9 @@ public:
 	void CompleteRound();
 
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
+	void CompleteGameFlow();
+
+	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void FinishGameFlow();
 
 	void ForceStartGameFlow();
@@ -45,8 +58,13 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	using FFlowTimerCallback = void (UNBGameFlowComponent::*)();
+
 	ANBGameState* GetNBGameState() const;
+	void ScheduleFlowStep(float Delay, FFlowTimerCallback Callback);
+	void ClearFlowTimer();
 	void GenerateAnswerNumbers();
+	FNBGuessResult BuildGuessResult(const TArray<int32>& InputValues);
 
 	void HandleInputValuesChanged(
 		FGameplayTag Channel,
@@ -61,11 +79,24 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category = "GameFlow", meta = (ClampMin = "1.0"))
 	float UserInputDuration = 20.f;
 
+	UPROPERTY(EditDefaultsOnly, Category = "GameFlow", meta = (ClampMin = "0.1"))
+	float RoundStartingDuration = 1.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "GameFlow", meta = (ClampMin = "0.1"))
+	float StartingTurnDuration = 1.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "GameFlow", meta = (ClampMin = "0.1"))
+	float ResultPresentationMaxWaitTime = 5.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "GameFlow", meta = (ClampMin = "0.1"))
+	float RoundEndingDuration = 1.f;
+
 	UPROPERTY(Transient)
 	TArray<int32> AnswerNumbers;
 
 	int32 CurrentRound = 0;
+	int32 NextAttemptId = 0;
 	bool bLastAnswerCorrect = false;
-	FTimerHandle UserInputTimerHandle;
+	FTimerHandle FlowTimerHandle;
 	FGameplayMessageListenerHandle InputValuesChangedListenerHandle;
 };

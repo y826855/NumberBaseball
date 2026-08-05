@@ -2,7 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
+#include "NativeGameplayTags.h"
 #include "NBPendingTask.generated.h"
+
+namespace NBPendingTaskTags
+{
+	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(NumberPadResult);
+}
 
 USTRUCT(BlueprintType)
 struct GAMEANIMATIONSAMPLE_API FNBPendingTaskState

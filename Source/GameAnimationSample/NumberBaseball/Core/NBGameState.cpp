@@ -29,11 +29,13 @@ void ANBGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(ThisClass, CurrentGamePhase);
 	DOREPLIFETIME(ThisClass, CurrentTurnPhase);
 	DOREPLIFETIME(ThisClass, CurrentInputValues);
+	DOREPLIFETIME(ThisClass, CurrentRoundPhase);
+	DOREPLIFETIME(ThisClass, RoundStateRevision);
 	DOREPLIFETIME(ThisClass, RequiredInputCount);
 	DOREPLIFETIME(ThisClass, CurrentRound);
 	DOREPLIFETIME(ThisClass, TotalRoundCount);
 	DOREPLIFETIME(ThisClass, UserInputEndServerTime);
-	DOREPLIFETIME(ThisClass, bLastAnswerCorrect);
+	DOREPLIFETIME(ThisClass, LastGuessResult);
 	DOREPLIFETIME(ThisClass, PendingTaskState);
 }
 
@@ -57,6 +59,18 @@ void ANBGameState::SetCurrentTurnPhase(ENBTurnPhase NewTurnPhase)
 
 	CurrentTurnPhase = NewTurnPhase;
 	OnRep_CurrentTurnPhase();
+}
+
+void ANBGameState::SetCurrentRoundPhase(ENBRoundPhase NewRoundPhase)
+{
+	if (HasAuthority() == false || CurrentRoundPhase == NewRoundPhase)
+	{
+		return;
+	}
+
+	CurrentRoundPhase = NewRoundPhase;
+	++RoundStateRevision;
+	OnRep_CurrentRoundPhase();
 }
 
 void ANBGameState::AddInputValue(int32 Value)
@@ -97,11 +111,12 @@ void ANBGameState::SetUserInputEndServerTime(float EndServerTime)
 	}
 }
 
-void ANBGameState::SetLastAnswerCorrect(bool bIsCorrect)
+void ANBGameState::SetLastGuessResult(const FNBGuessResult& NewGuessResult)
 {
 	if (HasAuthority())
 	{
-		bLastAnswerCorrect = bIsCorrect;
+		LastGuessResult = NewGuessResult;
+		OnRep_LastGuessResult();
 	}
 }
 
@@ -168,6 +183,25 @@ void ANBGameState::OnRep_CurrentInputValues()
 	UGameplayMessageSubsystem::Get(this).BroadcastMessage(
 		NBGameplayMessages::InputValuesChanged,
 		Message);
+}
+
+void ANBGameState::OnRep_CurrentRoundPhase()
+{
+	FNBRoundStateChangedMessage Message;
+	Message.RoundPhase = CurrentRoundPhase;
+	Message.CurrentRound = CurrentRound;
+	Message.TotalRoundCount = TotalRoundCount;
+	Message.RequiredInputCount = RequiredInputCount;
+	UGameplayMessageSubsystem::Get(this).BroadcastMessage(
+		NBGameplayMessages::RoundStateChanged,
+		Message);
+}
+
+void ANBGameState::OnRep_LastGuessResult()
+{
+	UGameplayMessageSubsystem::Get(this).BroadcastMessage(
+		NBGameplayMessages::GuessResultChanged,
+		LastGuessResult);
 }
 
 void ANBGameState::OnRep_PendingTaskState()

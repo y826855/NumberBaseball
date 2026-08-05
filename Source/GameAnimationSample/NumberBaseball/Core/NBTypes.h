@@ -20,3 +20,12 @@ enum class ENBTurnPhase : uint8
 	UserInputTurn,
 	EndingTurn
 };
+
+UENUM(BlueprintType)
+enum class ENBRoundPhase : uint8
+{
+	None,
+	Starting,
+	InProgress,
+	Ended
+};
