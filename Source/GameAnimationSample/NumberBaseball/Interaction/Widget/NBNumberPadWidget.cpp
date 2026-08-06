@@ -1,11 +1,15 @@
 #include "NBNumberPadWidget.h"
 
+#include "Components/PanelWidget.h"
 #include "Engine/World.h"
 #include "GameAnimationSample/NumberBaseball/Core/NBGameState.h"
 #include "GameAnimationSample/NumberBaseball/PlayerController/Components/NBPendingTaskClientComponent.h"
 #include "GameAnimationSample/NumberBaseball/PlayerController/NBPlayerController.h"
 #include "GameAnimationSample/NumberBaseball/Struct/NBGameplayMessages.h"
 #include "GameAnimationSample/NumberBaseball/Struct/NBPendingTask.h"
+#include "NBNumberWidget.h"
+#include "NBResultWidget.h"
+#include "TimerManager.h"
 
 void UNBNumberPadWidget::FinishResultPresentation()
 {
@@ -64,29 +68,25 @@ void UNBNumberPadWidget::NativeConstruct()
 
 	if (ANBGameState* NBGameState = GetWorld()->GetGameState<ANBGameState>())
 	{
-		ApplyInputValues(NBGameState->GetCurrentInputValues());
-		ApplyGuessResult(NBGameState->GetLastGuessResult());
-		HandlePendingTaskChanged(FGameplayTag(), NBGameState->GetPendingTaskState());
-
 		if (NBGameState->GetCurrentRoundPhase() == ENBRoundPhase::Starting
 			|| NBGameState->GetCurrentRoundPhase() == ENBRoundPhase::InProgress)
 		{
-			OnRoundStarted(
-				NBGameState->GetCurrentRound(),
-				NBGameState->GetTotalRoundCount(),
-				NBGameState->GetRequiredInputCount());
+			CreateRoundWidgets(NBGameState->GetRequiredInputCount());
 		}
 		else if (NBGameState->GetCurrentRoundPhase() == ENBRoundPhase::Ended)
 		{
-			OnRoundEnded(NBGameState->GetCurrentRound());
+			ClearRoundWidgets();
 		}
 
 		if (NBGameState->GetCurrentRoundPhase() == ENBRoundPhase::InProgress
 			&& NBGameState->GetCurrentTurnPhase() == ENBTurnPhase::StartingTurn)
 		{
-			DisplayedInputCount = 0;
-			OnTurnStarted();
+			ResetTurnWidgets();
 		}
+
+		HandlePendingTaskChanged(FGameplayTag(), NBGameState->GetPendingTaskState());
+		ApplyInputValues(NBGameState->GetCurrentInputValues());
+		ApplyGuessResult(NBGameState->GetLastGuessResult());
 	}
 }
 
@@ -97,6 +97,7 @@ void UNBNumberPadWidget::NativeDestruct()
 	RoundStateChangedListenerHandle.Unregister();
 	GuessResultChangedListenerHandle.Unregister();
 	PendingTaskChangedListenerHandle.Unregister();
+	GetWorld()->GetTimerManager().ClearTimer(ResultPresentationTimerHandle);
 
 	Super::NativeDestruct();
 }
@@ -114,8 +115,7 @@ void UNBNumberPadWidget::HandleTurnPhaseChanged(
 {
 	if (Message.TurnPhase == ENBTurnPhase::StartingTurn)
 	{
-		DisplayedInputCount = 0;
-		OnTurnStarted();
+		ResetTurnWidgets();
 	}
 }
 
@@ -125,14 +125,11 @@ void UNBNumberPadWidget::HandleRoundStateChanged(
 {
 	if (Message.RoundPhase == ENBRoundPhase::Starting)
 	{
-		OnRoundStarted(
-			Message.CurrentRound,
-			Message.TotalRoundCount,
-			Message.RequiredInputCount);
+		CreateRoundWidgets(Message.RequiredInputCount);
 	}
 	else if (Message.RoundPhase == ENBRoundPhase::Ended)
 	{
-		OnRoundEnded(Message.CurrentRound);
+		ClearRoundWidgets();
 	}
 }
 
@@ -157,6 +154,74 @@ void UNBNumberPadWidget::HandlePendingTaskChanged(
 		: INDEX_NONE;
 }
 
+void UNBNumberPadWidget::CreateRoundWidgets(int32 RequiredInputCount)
+{
+	ClearRoundWidgets();
+
+	if (IsValid(UpperBox) == false || IsValid(LowerBox) == false
+		|| NumberWidgetClass == nullptr || ResultWidgetClass == nullptr)
+	{
+		return;
+	}
+
+	for (int32 Index = 0; Index < RequiredInputCount; ++Index)
+	{
+		UNBNumberWidget* NumberWidget = CreateWidget<UNBNumberWidget>(GetOwningPlayer(), NumberWidgetClass);
+		UNBResultWidget* ResultWidget = CreateWidget<UNBResultWidget>(GetOwningPlayer(), ResultWidgetClass);
+		if (IsValid(NumberWidget) == false || IsValid(ResultWidget) == false)
+		{
+			continue;
+		}
+
+		NumberWidget->SetVisibility(ESlateVisibility::Collapsed);
+		ResultWidget->SetVisibility(ESlateVisibility::Collapsed);
+		UpperBox->AddChild(NumberWidget);
+		LowerBox->AddChild(ResultWidget);
+		NumberWidgets.Add(NumberWidget);
+		ResultWidgets.Add(ResultWidget);
+	}
+}
+
+void UNBNumberPadWidget::ClearRoundWidgets()
+{
+	GetWorld()->GetTimerManager().ClearTimer(ResultPresentationTimerHandle);
+	NumberWidgets.Reset();
+	ResultWidgets.Reset();
+	DisplayedInputCount = 0;
+
+	if (IsValid(UpperBox))
+	{
+		UpperBox->ClearChildren();
+	}
+
+	if (IsValid(LowerBox))
+	{
+		LowerBox->ClearChildren();
+	}
+}
+
+void UNBNumberPadWidget::ResetTurnWidgets()
+{
+	GetWorld()->GetTimerManager().ClearTimer(ResultPresentationTimerHandle);
+	DisplayedInputCount = 0;
+
+	for (UNBNumberWidget* NumberWidget : NumberWidgets)
+	{
+		if (IsValid(NumberWidget))
+		{
+			NumberWidget->SetVisibility(ESlateVisibility::Collapsed);
+		}
+	}
+
+	for (UNBResultWidget* ResultWidget : ResultWidgets)
+	{
+		if (IsValid(ResultWidget))
+		{
+			ResultWidget->SetVisibility(ESlateVisibility::Collapsed);
+		}
+	}
+}
+
 void UNBNumberPadWidget::ApplyInputValues(const TArray<int32>& InputValues)
 {
 	if (InputValues.Num() < DisplayedInputCount)
@@ -166,7 +231,11 @@ void UNBNumberPadWidget::ApplyInputValues(const TArray<int32>& InputValues)
 
 	for (int32 Index = DisplayedInputCount; Index < InputValues.Num(); ++Index)
 	{
-		OnInputValueAdded(InputValues[Index]);
+		if (NumberWidgets.IsValidIndex(Index) && IsValid(NumberWidgets[Index]))
+		{
+			NumberWidgets[Index]->SetNumber(InputValues[Index]);
+			NumberWidgets[Index]->SetVisibility(ESlateVisibility::HitTestInvisible);
+		}
 	}
 
 	DisplayedInputCount = InputValues.Num();
@@ -174,13 +243,21 @@ void UNBNumberPadWidget::ApplyInputValues(const TArray<int32>& InputValues)
 
 void UNBNumberPadWidget::ApplyGuessResult(const FNBGuessResult& GuessResult)
 {
-	TArray<ENBNumberMatchResult> GuessResults;
-	GuessResults.Reserve(GuessResult.NumberResults.Num());
-
-	for (const FNBNumberResult& NumberResult : GuessResult.NumberResults)
+	for (int32 Index = 0; Index < GuessResult.NumberResults.Num(); ++Index)
 	{
-		GuessResults.Add(NumberResult.MatchResult);
+		if (ResultWidgets.IsValidIndex(Index) && IsValid(ResultWidgets[Index]))
+		{
+			ResultWidgets[Index]->ShowResult(GuessResult.NumberResults[Index].MatchResult);
+		}
 	}
 
-	OnGuessResultsUpdated(GuessResults);
+	if (GuessResult.NumberResults.IsEmpty() == false)
+	{
+		GetWorld()->GetTimerManager().SetTimer(
+			ResultPresentationTimerHandle,
+			this,
+			&ThisClass::FinishResultPresentation,
+			ResultPresentationDuration,
+			false);
+	}
 }

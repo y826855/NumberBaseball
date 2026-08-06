@@ -4,14 +4,14 @@
 #include "Components/SceneComponent.h"
 #include "GameFramework/GameplayMessageSubsystem.h"
 #include "GameFramework/Pawn.h"
-#include "Net/UnrealNetwork.h"
 #include "GameAnimationSample/NumberBaseball/Struct/NBGameplayMessages.h"
+#include "Net/UnrealNetwork.h"
 
 ANBNumberPad::ANBNumberPad()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
-	bAlwaysRelevant = true;
+	SetReplicateMovement(true);
 
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
@@ -26,12 +26,24 @@ ANBNumberPad::ANBNumberPad()
 	Trigger->OnComponentEndOverlap.AddDynamic(this, &ThisClass::HandleEndOverlap);
 }
 
+void ANBNumberPad::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (GetNetMode() != NM_DedicatedServer)
+	{
+		OnPadNumberChanged(HavingNumber);
+	}
+}
+
 void ANBNumberPad::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ThisClass, bInputSubmitted);
 	DOREPLIFETIME(ThisClass, HavingNumber);
+	DOREPLIFETIME(ThisClass, bIsPressed);
+	DOREPLIFETIME(ThisClass, bIsPadEnabled);
 }
 
 void ANBNumberPad::CompletePress()
@@ -49,6 +61,7 @@ void ANBNumberPad::CompletePress()
 
 	bInputSubmitted = true;
 	OnRep_InputSubmitted();
+	ForceNetUpdate();
 }
 
 void ANBNumberPad::ResetInput()
@@ -60,6 +73,7 @@ void ANBNumberPad::ResetInput()
 
 	bInputSubmitted = false;
 	OnRep_InputSubmitted();
+	ForceNetUpdate();
 }
 
 void ANBNumberPad::SetPadEnabled(bool bEnabled)
@@ -70,12 +84,12 @@ void ANBNumberPad::SetPadEnabled(bool bEnabled)
 	}
 
 	bIsPadEnabled = bEnabled;
-	if (bIsPadEnabled)
+	if (bIsPadEnabled == false)
 	{
-		OnPadActivated();
+		SetPressed(false);
 	}
-
-	Trigger->SetCollisionEnabled(bEnabled ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+	OnRep_IsPadEnabled();
+	ForceNetUpdate();
 }
 
 void ANBNumberPad::SetPadNumber(int32 Number)
@@ -87,6 +101,7 @@ void ANBNumberPad::SetPadNumber(int32 Number)
 
 	HavingNumber = Number;
 	OnRep_HavingNumber();
+	ForceNetUpdate();
 }
 
 void ANBNumberPad::OnRep_InputSubmitted()
@@ -96,7 +111,42 @@ void ANBNumberPad::OnRep_InputSubmitted()
 
 void ANBNumberPad::OnRep_HavingNumber()
 {
-	OnPadNumberChanged(HavingNumber);
+	if (GetNetMode() != NM_DedicatedServer)
+	{
+		OnPadNumberChanged(HavingNumber);
+	}
+}
+
+void ANBNumberPad::OnRep_IsPadEnabled()
+{
+	if (bIsPadEnabled)
+	{
+		OnPadActivated();
+	}
+}
+
+void ANBNumberPad::SetPressed(bool bPressed)
+{
+	if (HasAuthority() == false || bIsPressed == bPressed)
+	{
+		return;
+	}
+
+	bIsPressed = bPressed;
+	OnRep_IsPressed();
+	ForceNetUpdate();
+}
+
+void ANBNumberPad::OnRep_IsPressed()
+{
+	if (bIsPressed)
+	{
+		OnPressStarted();
+	}
+	else
+	{
+		OnPressReleased();
+	}
 }
 
 void ANBNumberPad::HandleBeginOverlap(
@@ -118,8 +168,7 @@ void ANBNumberPad::HandleBeginOverlap(
 		return;
 	}
 
-	OnPressStarted(Pawn);
-	OnRep_InputSubmitted();
+	SetPressed(true);
 }
 
 void ANBNumberPad::HandleEndOverlap(
@@ -128,7 +177,7 @@ void ANBNumberPad::HandleEndOverlap(
 	UPrimitiveComponent* OtherComponent,
 	int32 OtherBodyIndex)
 {
-	if (HasAuthority() == false || bIsPadEnabled == false || bInputSubmitted)
+	if (HasAuthority() == false || bIsPadEnabled == false)
 	{
 		return;
 	}
@@ -139,8 +188,6 @@ void ANBNumberPad::HandleEndOverlap(
 		return;
 	}
 
-	OnPressReleased(Pawn);
-	OnRep_InputSubmitted();
+	SetPressed(false);
 }
 
-//TODO 플레이어 폰인지 체크하는 함수 만들자

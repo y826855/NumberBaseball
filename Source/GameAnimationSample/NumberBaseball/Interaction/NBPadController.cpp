@@ -1,6 +1,5 @@
 #include "NBPadController.h"
 
-#include "Components/ChildActorComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
 #include "GameAnimationSample/NumberBaseball/Core/NBGameState.h"
@@ -17,14 +16,6 @@ ANBPadController::ANBPadController()
 
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SetRootComponent(SceneRoot);
-
-	for (int32 Index = 0; Index < 9; ++Index)
-	{
-		const FName ComponentName(*FString::Printf(TEXT("Pad%d"), Index + 1));
-		UChildActorComponent* PadComponent = CreateDefaultSubobject<UChildActorComponent>(ComponentName);
-		PadComponent->SetupAttachment(SceneRoot);
-		PadComponents.Add(PadComponent);
-	}
 }
 
 void ANBPadController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -34,47 +25,14 @@ void ANBPadController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(ThisClass, bIsActive);
 }
 
-void ANBPadController::OnConstruction(const FTransform& Transform)
-{
-	Super::OnConstruction(Transform);
-
-	for (int32 Index = 0; Index < PadComponents.Num(); ++Index)
-	{
-		UChildActorComponent* PadComponent = PadComponents[Index];
-		if (IsValid(PadComponent) == false)
-		{
-			continue;
-		}
-
-		const int32 Row = Index / 3;
-		const int32 Column = Index % 3;
-		PadComponent->SetRelativeLocation(FVector(
-			(Column - 1) * Padding.X,
-			(1 - Row) * Padding.Y,
-			0.f));
-
-		if (PadComponent->GetChildActorClass() != PadClass.Get())
-		{
-			PadComponent->SetChildActorClass(PadClass);
-		}
-
-		SetPadNumber(Index, Index + 1);
-	}
-}
-
 void ANBPadController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	for (int32 Index = 0; Index < PadComponents.Num(); ++Index)
-	{
-		SetPadNumber(Index, Index + 1);
-	}
-
-	OnRep_IsActive();
-
 	if (HasAuthority())
 	{
+		SpawnPads();
+
 		TurnPhaseChangedListenerHandle = UGameplayMessageSubsystem::Get(this)
 			.RegisterListener<FNBTurnPhaseChangedMessage>(
 				NBGameplayMessages::TurnPhaseChanged,
@@ -86,43 +44,55 @@ void ANBPadController::BeginPlay()
 			ApplyTurnPhase(NBGameState->GetCurrentTurnPhase());
 		}
 	}
+
+	OnRep_IsActive();
 }
 
 void ANBPadController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	TurnPhaseChangedListenerHandle.Unregister();
 
+	if (HasAuthority() && EndPlayReason == EEndPlayReason::Destroyed)
+	{
+		for (ANBNumberPad* NumberPad : SpawnedPads)
+		{
+			if (IsValid(NumberPad))
+			{
+				NumberPad->Destroy();
+			}
+		}
+	}
+
+	SpawnedPads.Reset();
 	Super::EndPlay(EndPlayReason);
 }
 
 void ANBPadController::ResetPads()
 {
-	for (UChildActorComponent* PadComponent : PadComponents)
+	if (HasAuthority() == false)
 	{
-		if (IsValid(PadComponent))
+		return;
+	}
+
+	for (ANBNumberPad* NumberPad : SpawnedPads)
+	{
+		if (IsValid(NumberPad))
 		{
-			if (ANBNumberPad* NumberPad = Cast<ANBNumberPad>(PadComponent->GetChildActor()))
-			{
-				NumberPad->ResetInput();
-			}
+			NumberPad->ResetInput();
 		}
 	}
 }
 
 void ANBPadController::SetPadNumber(int32 PadIndex, int32 Number)
 {
-	if (PadComponents.IsValidIndex(PadIndex) == false)
+	if (HasAuthority() == false || SpawnedPads.IsValidIndex(PadIndex) == false)
 	{
 		return;
 	}
 
-	UChildActorComponent* PadComponent = PadComponents[PadIndex];
-	if (IsValid(PadComponent))
+	if (ANBNumberPad* NumberPad = SpawnedPads[PadIndex])
 	{
-		if (ANBNumberPad* NumberPad = Cast<ANBNumberPad>(PadComponent->GetChildActor()))
-		{
-			NumberPad->SetPadNumber(Number);
-		}
+		NumberPad->SetPadNumber(Number);
 	}
 }
 
@@ -134,7 +104,58 @@ void ANBPadController::SetControllerActive(bool bActive)
 	}
 
 	bIsActive = bActive;
+	for (ANBNumberPad* NumberPad : SpawnedPads)
+	{
+		if (IsValid(NumberPad))
+		{
+			NumberPad->SetPadEnabled(bIsActive);
+		}
+	}
+
 	OnRep_IsActive();
+	ForceNetUpdate();
+}
+
+void ANBPadController::SpawnPads()
+{
+	if (PadClass == nullptr)
+	{
+		return;
+	}
+
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.Owner = this;
+	SpawnParameters.SpawnCollisionHandlingOverride =
+		ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	for (int32 Index = 0; Index < 9; ++Index)
+	{
+		ANBNumberPad* NumberPad = GetWorld()->SpawnActor<ANBNumberPad>(
+			PadClass,
+			GetPadTransform(Index),
+			SpawnParameters);
+		if (IsValid(NumberPad))
+		{
+			NumberPad->SetReplicates(true);
+			NumberPad->SetReplicateMovement(true);
+			NumberPad->SetPadNumber(Index + 1);
+			NumberPad->SetPadEnabled(bIsActive);
+			NumberPad->AttachToComponent(SceneRoot, FAttachmentTransformRules::KeepWorldTransform);
+			SpawnedPads.Add(NumberPad);
+		}
+	}
+}
+
+FTransform ANBPadController::GetPadTransform(int32 PadIndex) const
+{
+	const int32 Row = PadIndex / 3;
+	const int32 Column = PadIndex % 3;
+	const FVector LocalLocation(
+		(Column - 1) * Padding.X,
+		(1 - Row) * Padding.Y,
+		0.f);
+
+	return FTransform(FRotator::ZeroRotator, LocalLocation) * GetActorTransform();
 }
 
 void ANBPadController::HandleTurnPhaseChanged(
@@ -159,16 +180,5 @@ void ANBPadController::ApplyTurnPhase(ENBTurnPhase TurnPhase)
 
 void ANBPadController::OnRep_IsActive()
 {
-	for (UChildActorComponent* PadComponent : PadComponents)
-	{
-		if (IsValid(PadComponent))
-		{
-			if (ANBNumberPad* NumberPad = Cast<ANBNumberPad>(PadComponent->GetChildActor()))
-			{
-				NumberPad->SetPadEnabled(bIsActive);
-			}
-		}
-	}
-
 	OnActiveStateChanged(bIsActive);
 }

@@ -30,11 +30,13 @@ public:
 	void SetPadNumber(int32 Number);
 
 protected:
-	UFUNCTION(BlueprintImplementableEvent, Category = "Number Pad")
-	void OnPressStarted(APawn* PressingPawn);
+	virtual void BeginPlay() override;
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Number Pad")
-	void OnPressReleased(APawn* ReleasedPawn);
+	void OnPressStarted();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Number Pad")
+	void OnPressReleased();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Number Pad")
 	void OnInputSubmittedChanged(bool bIsSubmitted);
@@ -51,12 +53,23 @@ protected:
 	UPROPERTY(ReplicatedUsing = OnRep_HavingNumber, BlueprintReadOnly, Category = "Number Pad")
 	int32 HavingNumber = 0;
 
+	UPROPERTY(ReplicatedUsing = OnRep_IsPressed, BlueprintReadOnly, Category = "Number Pad")
+	bool bIsPressed = false;
+
 private:
+	void SetPressed(bool bPressed);
+
 	UFUNCTION()
 	void OnRep_InputSubmitted();
 
 	UFUNCTION()
 	void OnRep_HavingNumber();
+
+	UFUNCTION()
+	void OnRep_IsPadEnabled();
+
+	UFUNCTION()
+	void OnRep_IsPressed();
 
 	UFUNCTION()
 	void HandleBeginOverlap(
@@ -80,5 +93,6 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UBoxComponent> Trigger;
 
+	UPROPERTY(ReplicatedUsing = OnRep_IsPadEnabled)
 	bool bIsPadEnabled = true;
 };

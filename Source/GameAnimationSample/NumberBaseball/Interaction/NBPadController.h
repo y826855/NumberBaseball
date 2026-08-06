@@ -6,7 +6,6 @@
 #include "NBPadController.generated.h"
 
 class ANBNumberPad;
-class UChildActorComponent;
 class USceneComponent;
 struct FGameplayTag;
 struct FNBTurnPhaseChangedMessage;
@@ -33,7 +32,6 @@ public:
 	bool IsControllerActive() const { return bIsActive; }
 
 protected:
-	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
@@ -50,6 +48,8 @@ protected:
 	void OnActiveStateChanged(bool bActive);
 
 private:
+	void SpawnPads();
+	FTransform GetPadTransform(int32 PadIndex) const;
 	void HandleTurnPhaseChanged(
 		FGameplayTag Channel,
 		const FNBTurnPhaseChangedMessage& Message);
@@ -58,8 +58,8 @@ private:
 	UFUNCTION()
 	void OnRep_IsActive();
 
-	UPROPERTY()
-	TArray<TObjectPtr<UChildActorComponent>> PadComponents;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<ANBNumberPad>> SpawnedPads;
 
 	UPROPERTY(ReplicatedUsing = OnRep_IsActive)
 	bool bIsActive = false;

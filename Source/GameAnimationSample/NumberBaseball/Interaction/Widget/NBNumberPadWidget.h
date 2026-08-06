@@ -3,6 +3,7 @@
 #include "Blueprint/UserWidget.h"
 #include "GameFramework/GameplayMessageSubsystem.h"
 #include "GameAnimationSample/NumberBaseball/Struct/NBGuessResult.h"
+#include "TimerManager.h"
 #include "NBNumberPadWidget.generated.h"
 
 struct FGameplayTag;
@@ -10,6 +11,9 @@ struct FNBInputValuesChangedMessage;
 struct FNBPendingTaskState;
 struct FNBRoundStateChangedMessage;
 struct FNBTurnPhaseChangedMessage;
+class UPanelWidget;
+class UNBNumberWidget;
+class UNBResultWidget;
 
 UCLASS(Abstract)
 class GAMEANIMATIONSAMPLE_API UNBNumberPadWidget : public UUserWidget
@@ -24,28 +28,28 @@ protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 
-	UFUNCTION(BlueprintImplementableEvent, Category = "NumberPad")
-	void OnInputValueAdded(int32 InputValue);
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UPanelWidget> UpperBox;
 
-	UFUNCTION(BlueprintImplementableEvent, Category = "NumberPad")
-	void OnTurnStarted();
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<UPanelWidget> LowerBox;
 
-	UFUNCTION(BlueprintImplementableEvent, Category = "NumberPad")
-	void OnRoundStarted(
-		int32 CurrentRound,
-		int32 TotalRoundCount,
-		int32 RequiredInputCount);
+	UPROPERTY(EditDefaultsOnly, Category = "NumberPad")
+	TSubclassOf<UNBNumberWidget> NumberWidgetClass;
 
-	UFUNCTION(BlueprintImplementableEvent, Category = "NumberPad")
-	void OnRoundEnded(int32 CompletedRound);
+	UPROPERTY(EditDefaultsOnly, Category = "NumberPad")
+	TSubclassOf<UNBResultWidget> ResultWidgetClass;
 
-	UFUNCTION(BlueprintImplementableEvent, Category = "NumberPad")
-	void OnGuessResultsUpdated(const TArray<ENBNumberMatchResult>& GuessResults);
+	UPROPERTY(EditDefaultsOnly, Category = "NumberPad", meta = (ClampMin = "0.0"))
+	float ResultPresentationDuration = 0.2f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	int32 DisplayedInputCount = 0;
 	
 private:
+	void CreateRoundWidgets(int32 RequiredInputCount);
+	void ClearRoundWidgets();
+	void ResetTurnWidgets();
 	void ApplyInputValues(const TArray<int32>& InputValues);
 	void ApplyGuessResult(const FNBGuessResult& GuessResult);
 
@@ -70,5 +74,12 @@ private:
 	FGameplayMessageListenerHandle RoundStateChangedListenerHandle;
 	FGameplayMessageListenerHandle GuessResultChangedListenerHandle;
 	FGameplayMessageListenerHandle PendingTaskChangedListenerHandle;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UNBNumberWidget>> NumberWidgets;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UNBResultWidget>> ResultWidgets;
+
+	FTimerHandle ResultPresentationTimerHandle;
 	int32 ActivePendingTaskId = INDEX_NONE;
 };
