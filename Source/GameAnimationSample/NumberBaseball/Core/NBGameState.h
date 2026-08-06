@@ -9,6 +9,7 @@
 
 struct FGameplayTag;
 struct FNBInputMessage;
+class APlayerState;
 
 UCLASS()
 class GAMEANIMATIONSAMPLE_API ANBGameState : public AGameState
@@ -18,6 +19,8 @@ class GAMEANIMATIONSAMPLE_API ANBGameState : public AGameState
 public:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void AddPlayerState(APlayerState* PlayerState) override;
+	virtual void RemovePlayerState(APlayerState* PlayerState) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	UFUNCTION(BlueprintCallable, Category = "Number Baseball|Game State")
@@ -27,6 +30,7 @@ public:
 	void SetCurrentTurnPhase(ENBTurnPhase NewTurnPhase);
 
 	void SetCurrentRoundPhase(ENBRoundPhase NewRoundPhase);
+	void SetCurrentTurnPlayer(APlayerState* NewTurnPlayer);
 
 	UFUNCTION(BlueprintCallable, Category = "Number Baseball|Game State")
 	void AddInputValue(int32 Value);
@@ -39,6 +43,7 @@ public:
 	void SetUserInputEndServerTime(float EndServerTime);
 	void SetLastGuessResult(const FNBGuessResult& NewGuessResult);
 	void SetPendingTaskState(const FNBPendingTaskState& NewPendingTaskState);
+	void NotifyPlayerInfoReady(APlayerState* PlayerState);
 
 	UFUNCTION(BlueprintPure, Category = "Number Baseball|Game State")
 	ENBGamePhase GetCurrentGamePhase() const { return CurrentGamePhase; }
@@ -48,6 +53,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Number Baseball|Game State")
 	ENBRoundPhase GetCurrentRoundPhase() const { return CurrentRoundPhase; }
+
+	UFUNCTION(BlueprintPure, Category = "Number Baseball|Game State")
+	APlayerState* GetCurrentTurnPlayer() const { return CurrentTurnPlayer; }
 
 	UFUNCTION(BlueprintPure, Category = "Number Baseball|Game State")
 	TArray<int32> GetCurrentInputValues() const { return CurrentInputValues; }
@@ -88,6 +96,9 @@ private:
 	void OnRep_CurrentTurnPhase();
 
 	UFUNCTION()
+	void OnRep_CurrentTurnPlayer();
+
+	UFUNCTION()
 	void OnRep_CurrentInputValues();
 
 	UFUNCTION()
@@ -104,6 +115,9 @@ private:
 
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentTurnPhase)
 	ENBTurnPhase CurrentTurnPhase = ENBTurnPhase::StartingTurn;
+
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentTurnPlayer)
+	TObjectPtr<APlayerState> CurrentTurnPlayer;
 
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentInputValues)
 	TArray<int32> CurrentInputValues;

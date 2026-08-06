@@ -1,6 +1,7 @@
 #include "NBGameState.h"
 
 #include "GameAnimationSample/NumberBaseball/Struct/NBGameplayMessages.h"
+#include "GameFramework/PlayerState.h"
 #include "Net/UnrealNetwork.h"
 
 void ANBGameState::BeginPlay()
@@ -22,12 +23,46 @@ void ANBGameState::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
+void ANBGameState::AddPlayerState(APlayerState* PlayerState)
+{
+	Super::AddPlayerState(PlayerState);
+	NotifyPlayerInfoReady(PlayerState);
+}
+
+void ANBGameState::RemovePlayerState(APlayerState* PlayerState)
+{
+	Super::RemovePlayerState(PlayerState);
+
+	FNBScoreChangedMessage Message;
+	Message.PlayerState = PlayerState;
+	UGameplayMessageSubsystem::Get(this).BroadcastMessage(
+		NBGameplayMessages::ScoreChanged,
+		Message);
+}
+
+void ANBGameState::NotifyPlayerInfoReady(APlayerState* PlayerState)
+{
+	if (IsValid(PlayerState) == false
+		|| PlayerArray.Contains(PlayerState) == false
+		|| PlayerState->GetPlayerName().IsEmpty())
+	{
+		return;
+	}
+
+	FNBScoreChangedMessage Message;
+	Message.PlayerState = PlayerState;
+	UGameplayMessageSubsystem::Get(this).BroadcastMessage(
+		NBGameplayMessages::ScoreChanged,
+		Message);
+}
+
 void ANBGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ThisClass, CurrentGamePhase);
 	DOREPLIFETIME(ThisClass, CurrentTurnPhase);
+	DOREPLIFETIME(ThisClass, CurrentTurnPlayer);
 	DOREPLIFETIME(ThisClass, CurrentInputValues);
 	DOREPLIFETIME(ThisClass, CurrentRoundPhase);
 	DOREPLIFETIME(ThisClass, RoundStateRevision);
@@ -59,6 +94,17 @@ void ANBGameState::SetCurrentTurnPhase(ENBTurnPhase NewTurnPhase)
 
 	CurrentTurnPhase = NewTurnPhase;
 	OnRep_CurrentTurnPhase();
+}
+
+void ANBGameState::SetCurrentTurnPlayer(APlayerState* NewTurnPlayer)
+{
+	if (HasAuthority() == false || CurrentTurnPlayer == NewTurnPlayer)
+	{
+		return;
+	}
+
+	CurrentTurnPlayer = NewTurnPlayer;
+	OnRep_CurrentTurnPlayer();
 }
 
 void ANBGameState::SetCurrentRoundPhase(ENBRoundPhase NewRoundPhase)
@@ -172,6 +218,15 @@ void ANBGameState::OnRep_CurrentTurnPhase()
 	Message.TurnPhase = CurrentTurnPhase;
 	UGameplayMessageSubsystem::Get(this).BroadcastMessage(
 		NBGameplayMessages::TurnPhaseChanged,
+		Message);
+}
+
+void ANBGameState::OnRep_CurrentTurnPlayer()
+{
+	FNBTurnPlayerChangedMessage Message;
+	Message.TurnPlayer = CurrentTurnPlayer;
+	UGameplayMessageSubsystem::Get(this).BroadcastMessage(
+		NBGameplayMessages::TurnPlayerChanged,
 		Message);
 }
 

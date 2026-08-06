@@ -5,6 +5,8 @@
 #include "NativeGameplayTags.h"
 #include "NBGameplayMessages.generated.h"
 
+class APlayerState;
+
 namespace NBGameplayMessages
 {
 	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputSubmitted);
@@ -14,6 +16,24 @@ namespace NBGameplayMessages
 	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(RoundStateChanged);
 	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GuessResultChanged);
 	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(PendingTaskChanged);
+	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TimerChanged);
+	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(NotifyReceived);
+	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TurnPlayerChanged);
+	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(ScoreChanged);
+}
+
+namespace NBTimerTypes
+{
+	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameStart);
+	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(UserInput);
+}
+
+namespace NBNotifyTypes
+{
+	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(WaitingForPlayers);
+	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(WaitingForGameStart);
+	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(YourTurn);
+	GAMEANIMATIONSAMPLE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(OpponentTurn);
 }
 
 USTRUCT(BlueprintType)
@@ -41,6 +61,27 @@ struct GAMEANIMATIONSAMPLE_API FNBTurnPhaseChangedMessage
 
 	UPROPERTY(BlueprintReadOnly, Category = "Number Baseball")
 	ENBTurnPhase TurnPhase = ENBTurnPhase::StartingTurn;
+};
+
+USTRUCT(BlueprintType)
+struct GAMEANIMATIONSAMPLE_API FNBTurnPlayerChangedMessage
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Turn")
+	TObjectPtr<APlayerState> TurnPlayer;
+};
+
+USTRUCT(BlueprintType)
+struct GAMEANIMATIONSAMPLE_API FNBScoreChangedMessage
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Score")
+	TObjectPtr<APlayerState> PlayerState;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Score")
+	int32 CorrectAnswerCount = 0;
 };
 
 USTRUCT(BlueprintType)
