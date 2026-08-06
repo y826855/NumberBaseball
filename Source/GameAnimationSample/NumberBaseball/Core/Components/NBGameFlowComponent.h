@@ -51,6 +51,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "GameFlow")
 	void FinishGameFlow();
 
+	void ReturnToWaitingForPlayers();
+
 	void ForceStartGameFlow();
 
 protected:
@@ -63,6 +65,11 @@ private:
 	ANBGameState* GetNBGameState() const;
 	void ScheduleFlowStep(float Delay, FFlowTimerCallback Callback);
 	void ClearFlowTimer();
+	void SendUserInputTimer(bool bIsTimerActive) const;
+	void SendTurnNotifications(bool bIsTurnActive) const;
+	void ResetPlayerScores() const;
+	bool SelectRoundStartingPlayer();
+	bool AdvanceTurnPlayer();
 	void GenerateAnswerNumbers();
 	FNBGuessResult BuildGuessResult(const TArray<int32>& InputValues);
 

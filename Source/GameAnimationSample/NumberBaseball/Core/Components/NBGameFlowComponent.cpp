@@ -2,12 +2,18 @@
 
 #include "Engine/World.h"
 #include "GameAnimationSample/NumberBaseball/Core/Components/NBPendingTaskComponent.h"
+#include "GameAnimationSample/NumberBaseball/Core/Components/NBPlayerRegistryComponent.h"
 #include "GameAnimationSample/NumberBaseball/Core/NBGameMode.h"
 #include "GameAnimationSample/NumberBaseball/Core/NBGameState.h"
+#include "GameAnimationSample/NumberBaseball/PlayerController/Components/NBClientMessageComponent.h"
+#include "GameAnimationSample/NumberBaseball/PlayerController/NBPlayerController.h"
+#include "GameAnimationSample/NumberBaseball/PlayerState/NBPlayerState.h"
 #include "GameAnimationSample/NumberBaseball/Struct/NBGuessResult.h"
+#include "GameAnimationSample/NumberBaseball/Struct/NBClientMessages.h"
 #include "GameAnimationSample/NumberBaseball/Struct/NBGameplayMessages.h"
 #include "GameAnimationSample/NumberBaseball/Struct/NBPendingTask.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerState.h"
 
 UNBGameFlowComponent::UNBGameFlowComponent()
 {
@@ -52,11 +58,14 @@ void UNBGameFlowComponent::StartGameFlow()
 	bLastAnswerCorrect = false;
 	AnswerNumbers.Reset();
 	ClearFlowTimer();
+	SendTurnNotifications(false);
+	ResetPlayerScores();
 	NBGameState->ClearInputValues();
 	NBGameState->SetUserInputEndServerTime(0.f);
 	NBGameState->SetLastGuessResult(FNBGuessResult());
 	NBGameState->SetRoundState(CurrentRound, TotalRoundCount);
 	NBGameState->SetCurrentRoundPhase(ENBRoundPhase::None);
+	NBGameState->SetCurrentTurnPlayer(nullptr);
 	NBGameState->SetCurrentGamePhase(ENBGamePhase::Intro);
 
 	StartNextRound();
@@ -84,6 +93,11 @@ void UNBGameFlowComponent::StartRound()
 	if (CurrentRound >= TotalRoundCount)
 	{
 		CompleteGameFlow();
+		return;
+	}
+
+	if (SelectRoundStartingPlayer() == false)
+	{
 		return;
 	}
 
@@ -123,6 +137,7 @@ void UNBGameFlowComponent::StartTurn()
 
 	NBGameState->ClearInputValues();
 	NBGameState->SetCurrentTurnPhase(ENBTurnPhase::StartingTurn);
+	SendTurnNotifications(true);
 	ScheduleFlowStep(StartingTurnDuration, &ThisClass::StartUserInputTurn);
 }
 
@@ -139,6 +154,7 @@ void UNBGameFlowComponent::StartUserInputTurn()
 		NBGameState->SetUserInputEndServerTime(
 			NBGameState->GetServerWorldTimeSeconds() + UserInputDuration);
 		NBGameState->SetCurrentTurnPhase(ENBTurnPhase::UserInputTurn);
+		SendUserInputTimer(true);
 		ScheduleFlowStep(UserInputDuration, &ThisClass::EndUserInputTurn);
 	}
 }
@@ -158,6 +174,8 @@ void UNBGameFlowComponent::EndUserInputTurn()
 		&& GuessResult.StrikeCount == AnswerNumbers.Num();
 	NBGameState->SetUserInputEndServerTime(0.f);
 	NBGameState->SetCurrentTurnPhase(ENBTurnPhase::EndingTurn);
+	SendUserInputTimer(false);
+	SendTurnNotifications(false);
 
 	ANBGameMode* NBGameMode = Cast<ANBGameMode>(GetOwner());
 	APlayerController* CompletionPlayer = GetWorld()->GetFirstPlayerController();
@@ -194,7 +212,17 @@ void UNBGameFlowComponent::CompleteTurn()
 
 	if (bLastAnswerCorrect)
 	{
+		if (ANBPlayerState* PlayerState = Cast<ANBPlayerState>(
+			NBGameState->GetCurrentTurnPlayer()))
+		{
+			PlayerState->AddCorrectAnswer();
+		}
 		CompleteRound();
+		return;
+	}
+
+	if (AdvanceTurnPlayer() == false)
+	{
 		return;
 	}
 
@@ -211,6 +239,7 @@ void UNBGameFlowComponent::CompleteRound()
 
 	ClearFlowTimer();
 	NBGameState->SetUserInputEndServerTime(0.f);
+	NBGameState->SetCurrentTurnPlayer(nullptr);
 	NBGameState->SetCurrentRoundPhase(ENBRoundPhase::Ended);
 	ScheduleFlowStep(RoundEndingDuration, &ThisClass::StartNextRound);
 }
@@ -222,6 +251,7 @@ void UNBGameFlowComponent::CompleteGameFlow()
 	if (ANBGameState* NBGameState = GetNBGameState())
 	{
 		NBGameState->SetUserInputEndServerTime(0.f);
+		NBGameState->SetCurrentTurnPlayer(nullptr);
 		NBGameState->SetCurrentGamePhase(ENBGamePhase::Outro);
 	}
 }
@@ -229,15 +259,50 @@ void UNBGameFlowComponent::CompleteGameFlow()
 void UNBGameFlowComponent::FinishGameFlow()
 {
 	ClearFlowTimer();
+	SendUserInputTimer(false);
+	SendTurnNotifications(false);
 
 	if (ANBGameState* NBGameState = GetNBGameState())
 	{
 		NBGameState->SetUserInputEndServerTime(0.f);
+		NBGameState->SetCurrentTurnPlayer(nullptr);
 		if (CurrentRound > 0)
 		{
 			NBGameState->SetCurrentRoundPhase(ENBRoundPhase::Ended);
 		}
 		NBGameState->SetCurrentGamePhase(ENBGamePhase::Finished);
+	}
+}
+
+void UNBGameFlowComponent::ReturnToWaitingForPlayers()
+{
+	ClearFlowTimer();
+	SendUserInputTimer(false);
+	SendTurnNotifications(false);
+
+	ANBGameMode* NBGameMode = Cast<ANBGameMode>(GetOwner());
+	if (IsValid(NBGameMode) && IsValid(NBGameMode->GetPendingTaskComponent()))
+	{
+		NBGameMode->GetPendingTaskComponent()->CancelPendingTask();
+	}
+
+	CurrentRound = 0;
+	NextAttemptId = 0;
+	bLastAnswerCorrect = false;
+	AnswerNumbers.Reset();
+	ResetPlayerScores();
+
+	if (ANBGameState* NBGameState = GetNBGameState())
+	{
+		NBGameState->ClearInputValues();
+		NBGameState->SetRequiredInputCount(0);
+		NBGameState->SetUserInputEndServerTime(0.f);
+		NBGameState->SetLastGuessResult(FNBGuessResult());
+		NBGameState->SetCurrentTurnPlayer(nullptr);
+		NBGameState->SetCurrentTurnPhase(ENBTurnPhase::StartingTurn);
+		NBGameState->SetCurrentRoundPhase(ENBRoundPhase::None);
+		NBGameState->SetRoundState(0, TotalRoundCount);
+		NBGameState->SetCurrentGamePhase(ENBGamePhase::WaitingForReady);
 	}
 }
 
@@ -267,6 +332,128 @@ void UNBGameFlowComponent::ScheduleFlowStep(
 void UNBGameFlowComponent::ClearFlowTimer()
 {
 	GetWorld()->GetTimerManager().ClearTimer(FlowTimerHandle);
+}
+
+void UNBGameFlowComponent::SendUserInputTimer(bool bIsTimerActive) const
+{
+	ANBGameMode* NBGameMode = Cast<ANBGameMode>(GetOwner());
+	ANBGameState* NBGameState = GetNBGameState();
+	if (IsValid(NBGameMode) == false || IsValid(NBGameState) == false)
+	{
+		return;
+	}
+
+	FNBTimerMessage Message;
+	Message.TimerType = NBTimerTypes::UserInput;
+	Message.Duration = UserInputDuration;
+	Message.bIsActive = bIsTimerActive;
+	if (bIsTimerActive)
+	{
+		Message.EndServerTime =
+			NBGameState->GetServerWorldTimeSeconds() + UserInputDuration;
+	}
+
+	NBGameMode->BroadcastTimerMessage(Message);
+}
+
+void UNBGameFlowComponent::SendTurnNotifications(bool bIsTurnActive) const
+{
+	ANBGameState* NBGameState = GetNBGameState();
+	if (IsValid(NBGameState) == false)
+	{
+		return;
+	}
+
+	for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator();
+		Iterator;
+		++Iterator)
+	{
+		ANBPlayerController* PlayerController = Cast<ANBPlayerController>(Iterator->Get());
+		if (IsValid(PlayerController) == false
+			|| IsValid(PlayerController->GetClientMessageComponent()) == false)
+		{
+			continue;
+		}
+
+		FNBNotifyMessage Message;
+		Message.bIsActive = bIsTurnActive;
+		if (bIsTurnActive)
+		{
+			const bool bIsTurnOwner = PlayerController->GetPlayerState<APlayerState>()
+				== NBGameState->GetCurrentTurnPlayer();
+			Message.MessageType = bIsTurnOwner
+				? NBNotifyTypes::YourTurn
+				: NBNotifyTypes::OpponentTurn;
+			Message.Message = bIsTurnOwner
+				? NSLOCTEXT("NumberBaseball", "YourTurnNotification", "버튼 위에 올라서서 숫자를 입력하세요.")
+				: NSLOCTEXT("NumberBaseball", "OpponentTurnNotification", "조준하여 공을 발사해 숫자 입력을 저지하세요");
+		}
+
+		PlayerController->GetClientMessageComponent()->SendNotifyMessage(Message);
+	}
+}
+
+void UNBGameFlowComponent::ResetPlayerScores() const
+{
+	const ANBGameMode* NBGameMode = Cast<ANBGameMode>(GetOwner());
+	UNBPlayerRegistryComponent* PlayerRegistry = IsValid(NBGameMode)
+		? NBGameMode->GetPlayerRegistryComponent()
+		: nullptr;
+	if (IsValid(PlayerRegistry) == false)
+	{
+		return;
+	}
+
+	for (int32 Index = 0; Index < PlayerRegistry->GetPlayerCount(); ++Index)
+	{
+		if (ANBPlayerState* PlayerState = Cast<ANBPlayerState>(
+			PlayerRegistry->GetPlayerAt(Index)))
+		{
+			PlayerState->ResetCorrectAnswerCount();
+		}
+	}
+}
+
+bool UNBGameFlowComponent::SelectRoundStartingPlayer()
+{
+	ANBGameMode* NBGameMode = Cast<ANBGameMode>(GetOwner());
+	ANBGameState* NBGameState = GetNBGameState();
+	UNBPlayerRegistryComponent* PlayerRegistry = IsValid(NBGameMode)
+		? NBGameMode->GetPlayerRegistryComponent()
+		: nullptr;
+	if (IsValid(NBGameState) == false
+		|| IsValid(PlayerRegistry) == false
+		|| PlayerRegistry->GetPlayerCount() == 0)
+	{
+		return false;
+	}
+
+	const int32 PlayerIndex = FMath::RandRange(0, PlayerRegistry->GetPlayerCount() - 1);
+	NBGameState->SetCurrentTurnPlayer(PlayerRegistry->GetPlayerAt(PlayerIndex));
+	return true;
+}
+
+bool UNBGameFlowComponent::AdvanceTurnPlayer()
+{
+	ANBGameMode* NBGameMode = Cast<ANBGameMode>(GetOwner());
+	ANBGameState* NBGameState = GetNBGameState();
+	UNBPlayerRegistryComponent* PlayerRegistry = IsValid(NBGameMode)
+		? NBGameMode->GetPlayerRegistryComponent()
+		: nullptr;
+	if (IsValid(NBGameState) == false
+		|| IsValid(PlayerRegistry) == false
+		|| PlayerRegistry->GetPlayerCount() == 0)
+	{
+		return false;
+	}
+
+	const int32 CurrentIndex = PlayerRegistry->FindPlayerIndex(
+		NBGameState->GetCurrentTurnPlayer());
+	const int32 NextIndex = CurrentIndex == INDEX_NONE
+		? 0
+		: (CurrentIndex + 1) % PlayerRegistry->GetPlayerCount();
+	NBGameState->SetCurrentTurnPlayer(PlayerRegistry->GetPlayerAt(NextIndex));
+	return true;
 }
 
 void UNBGameFlowComponent::GenerateAnswerNumbers()
