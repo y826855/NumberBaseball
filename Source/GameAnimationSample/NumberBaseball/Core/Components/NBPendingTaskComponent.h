@@ -31,6 +31,7 @@ public:
 	void NotifyPendingTaskFinished(
 		APlayerController* PlayerController,
 		int32 TaskId);
+	void CancelPendingTask();
 
 	bool IsPendingTaskActive() const { return ActiveTaskId != INDEX_NONE; }
 

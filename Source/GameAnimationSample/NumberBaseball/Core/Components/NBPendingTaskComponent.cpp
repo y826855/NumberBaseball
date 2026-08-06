@@ -57,6 +57,25 @@ void UNBPendingTaskComponent::NotifyPendingTaskFinished(
 	CompletePendingTask(TaskId);
 }
 
+void UNBPendingTaskComponent::CancelPendingTask()
+{
+	if (IsPendingTaskActive() == false)
+	{
+		return;
+	}
+
+	GetWorld()->GetTimerManager().ClearTimer(PendingTaskTimerHandle);
+	ActiveTaskId = INDEX_NONE;
+	ActiveTaskTag = FGameplayTag();
+	CompletionPlayer.Reset();
+	PendingTaskCompletedDelegate.Unbind();
+
+	if (ANBGameState* NBGameState = GetNBGameState())
+	{
+		NBGameState->SetPendingTaskState(FNBPendingTaskState());
+	}
+}
+
 void UNBPendingTaskComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	GetWorld()->GetTimerManager().ClearTimer(PendingTaskTimerHandle);

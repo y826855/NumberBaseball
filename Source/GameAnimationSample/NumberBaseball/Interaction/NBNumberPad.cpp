@@ -2,6 +2,7 @@
 
 #include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
+#include "GameAnimationSample/NumberBaseball/Core/NBGameState.h"
 #include "GameFramework/GameplayMessageSubsystem.h"
 #include "GameFramework/Pawn.h"
 #include "GameAnimationSample/NumberBaseball/Struct/NBGameplayMessages.h"
@@ -168,6 +169,13 @@ void ANBNumberPad::HandleBeginOverlap(
 		return;
 	}
 
+	const ANBGameState* NBGameState = GetWorld()->GetGameState<ANBGameState>();
+	if (IsValid(NBGameState) == false
+		|| Pawn->GetPlayerState() != NBGameState->GetCurrentTurnPlayer())
+	{
+		return;
+	}
+
 	SetPressed(true);
 }
 
@@ -188,6 +196,12 @@ void ANBNumberPad::HandleEndOverlap(
 		return;
 	}
 
+	const ANBGameState* NBGameState = GetWorld()->GetGameState<ANBGameState>();
+	if (IsValid(NBGameState) == false
+		|| Pawn->GetPlayerState() != NBGameState->GetCurrentTurnPlayer())
+	{
+		return;
+	}
+
 	SetPressed(false);
 }
-

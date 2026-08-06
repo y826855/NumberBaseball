@@ -13,15 +13,12 @@ class GAMEANIMATIONSAMPLE_API UNBPlayerRegistryComponent : public UActorComponen
 public:
 	void AddPlayer(APlayerState* PlayerState);
 	void RemovePlayer(APlayerState* PlayerState);
-	void SetPlayerReady(APlayerState* PlayerState, bool bIsReady);
 
 	int32 GetPlayerCount() const;
-	bool AreAllPlayersReady(int32 MinimumPlayerCount) const;
+	APlayerState* GetPlayerAt(int32 Index) const;
+	int32 FindPlayerIndex(const APlayerState* PlayerState) const;
 
 private:
 	UPROPERTY(Transient)
-	TSet<TObjectPtr<APlayerState>> ConnectedPlayers;
-
-	UPROPERTY(Transient)
-	TSet<TObjectPtr<APlayerState>> ReadyPlayers;
+	TArray<TObjectPtr<APlayerState>> ConnectedPlayers;
 };
