@@ -16,5 +16,8 @@ public:
 	void PrintGameState();
 
 	UFUNCTION(Exec)
+	void PrintNetworkPlayers();
+
+	UFUNCTION(Exec)
 	void ForceUserInputTurn();
 };
