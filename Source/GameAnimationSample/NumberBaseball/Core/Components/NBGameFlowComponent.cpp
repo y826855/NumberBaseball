@@ -178,7 +178,10 @@ void UNBGameFlowComponent::EndUserInputTurn()
 	SendTurnNotifications(false);
 
 	ANBGameMode* NBGameMode = Cast<ANBGameMode>(GetOwner());
-	APlayerController* CompletionPlayer = GetWorld()->GetFirstPlayerController();
+	APlayerState* CurrentTurnPlayer = NBGameState->GetCurrentTurnPlayer();
+	APlayerController* CompletionPlayer = IsValid(CurrentTurnPlayer)
+		? Cast<APlayerController>(CurrentTurnPlayer->GetOwner())
+		: nullptr;
 	UNBPendingTaskComponent* PendingTaskComponent = IsValid(NBGameMode)
 		? NBGameMode->GetPendingTaskComponent()
 		: nullptr;
