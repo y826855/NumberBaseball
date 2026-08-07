@@ -83,13 +83,24 @@ void ANBGameMode::Logout(AController* Exiting)
 {
 	if (IsValid(Exiting))
 	{
+		APlayerState* ExitingPlayerState = Exiting->GetPlayerState<APlayerState>();
+		APlayerController* ExitingPlayerController = Cast<APlayerController>(Exiting);
 		UE_LOG(LogNBGameMode, Display,
 			TEXT("Logout: Controller=%s PlayerState=%s Pawn=%s"),
 			*GetNameSafe(Exiting),
-			*GetNameSafe(Exiting->GetPlayerState<APlayerState>()),
+			*GetNameSafe(ExitingPlayerState),
 			*GetNameSafe(Exiting->GetPawn()));
-		PlayerRegistryComponent->RemovePlayer(Exiting->GetPlayerState<APlayerState>());
-		EvaluateGamePhase();
+		PlayerRegistryComponent->RemovePlayer(ExitingPlayerState);
+
+		if (PlayerRegistryComponent->GetPlayerCount() < MinimumPlayerCount)
+		{
+			EvaluateGamePhase();
+		}
+		else
+		{
+			GameFlowComponent->HandlePlayerLogout(ExitingPlayerState);
+			PendingTaskComponent->NotifyPlayerDisconnected(ExitingPlayerController);
+		}
 	}
 
 	Super::Logout(Exiting);

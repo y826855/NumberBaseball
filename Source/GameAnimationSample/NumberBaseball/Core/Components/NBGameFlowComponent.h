@@ -6,6 +6,7 @@
 #include "NBGameFlowComponent.generated.h"
 
 class ANBGameState;
+class APlayerState;
 struct FGameplayTag;
 struct FNBGuessResult;
 struct FNBInputValuesChangedMessage;
@@ -52,6 +53,7 @@ public:
 	void FinishGameFlow();
 
 	void ReturnToWaitingForPlayers();
+	void HandlePlayerLogout(APlayerState* ExitingPlayer);
 
 	void ForceStartGameFlow();
 
