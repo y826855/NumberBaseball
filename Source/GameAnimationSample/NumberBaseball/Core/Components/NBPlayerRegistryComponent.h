@@ -16,6 +16,7 @@ public:
 
 	int32 GetPlayerCount() const;
 	APlayerState* GetPlayerAt(int32 Index) const;
+	APlayerState* GetNextPlayer(const APlayerState* PlayerState) const;
 	int32 FindPlayerIndex(const APlayerState* PlayerState) const;
 
 private:

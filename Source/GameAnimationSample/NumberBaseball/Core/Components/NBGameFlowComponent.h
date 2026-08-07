@@ -53,7 +53,9 @@ public:
 	void FinishGameFlow();
 
 	void ReturnToWaitingForPlayers();
-	void HandlePlayerLogout(APlayerState* ExitingPlayer);
+	void HandlePlayerLogout(
+		APlayerState* ExitingPlayer,
+		APlayerState* NextPlayer);
 
 	void ForceStartGameFlow();
 

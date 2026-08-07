@@ -309,10 +309,13 @@ void UNBGameFlowComponent::ReturnToWaitingForPlayers()
 	}
 }
 
-void UNBGameFlowComponent::HandlePlayerLogout(APlayerState* ExitingPlayer)
+void UNBGameFlowComponent::HandlePlayerLogout(
+	APlayerState* ExitingPlayer,
+	APlayerState* NextPlayer)
 {
 	ANBGameState* NBGameState = GetNBGameState();
 	if (IsValid(ExitingPlayer) == false
+		|| IsValid(NextPlayer) == false
 		|| IsValid(NBGameState) == false
 		|| NBGameState->GetCurrentTurnPlayer() != ExitingPlayer)
 	{
@@ -321,7 +324,7 @@ void UNBGameFlowComponent::HandlePlayerLogout(APlayerState* ExitingPlayer)
 
 	if (NBGameState->GetCurrentRoundPhase() != ENBRoundPhase::InProgress)
 	{
-		AdvanceTurnPlayer();
+		NBGameState->SetCurrentTurnPlayer(NextPlayer);
 		return;
 	}
 
@@ -329,10 +332,8 @@ void UNBGameFlowComponent::HandlePlayerLogout(APlayerState* ExitingPlayer)
 	{
 	case ENBTurnPhase::StartingTurn:
 		ClearFlowTimer();
-		if (AdvanceTurnPlayer())
-		{
-			StartTurn();
-		}
+		NBGameState->SetCurrentTurnPlayer(NextPlayer);
+		StartTurn();
 		break;
 
 	case ENBTurnPhase::UserInputTurn:
@@ -341,10 +342,8 @@ void UNBGameFlowComponent::HandlePlayerLogout(APlayerState* ExitingPlayer)
 		NBGameState->SetUserInputEndServerTime(0.f);
 		SendUserInputTimer(false);
 		SendTurnNotifications(false);
-		if (AdvanceTurnPlayer())
-		{
-			StartTurn();
-		}
+		NBGameState->SetCurrentTurnPlayer(NextPlayer);
+		StartTurn();
 		break;
 
 	case ENBTurnPhase::EndingTurn:
@@ -356,7 +355,15 @@ void UNBGameFlowComponent::HandlePlayerLogout(APlayerState* ExitingPlayer)
 				PendingTaskComponent->CancelPendingTask();
 			}
 		}
-		CompleteTurn();
+		if (bLastAnswerCorrect)
+		{
+			CompleteTurn();
+		}
+		else
+		{
+			NBGameState->SetCurrentTurnPlayer(NextPlayer);
+			StartTurn();
+		}
 		break;
 	}
 }

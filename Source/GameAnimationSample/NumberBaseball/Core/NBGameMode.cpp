@@ -90,6 +90,7 @@ void ANBGameMode::Logout(AController* Exiting)
 			*GetNameSafe(Exiting),
 			*GetNameSafe(ExitingPlayerState),
 			*GetNameSafe(Exiting->GetPawn()));
+		APlayerState* NextPlayer = PlayerRegistryComponent->GetNextPlayer(ExitingPlayerState);
 		PlayerRegistryComponent->RemovePlayer(ExitingPlayerState);
 
 		if (PlayerRegistryComponent->GetPlayerCount() < MinimumPlayerCount)
@@ -98,7 +99,9 @@ void ANBGameMode::Logout(AController* Exiting)
 		}
 		else
 		{
-			GameFlowComponent->HandlePlayerLogout(ExitingPlayerState);
+			GameFlowComponent->HandlePlayerLogout(
+				ExitingPlayerState,
+				NextPlayer);
 			PendingTaskComponent->NotifyPlayerDisconnected(ExitingPlayerController);
 		}
 	}
