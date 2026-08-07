@@ -57,17 +57,6 @@ void UNBPendingTaskComponent::NotifyPendingTaskFinished(
 	CompletePendingTask(TaskId);
 }
 
-void UNBPendingTaskComponent::NotifyPlayerDisconnected(
-	APlayerController* PlayerController)
-{
-	if (IsPendingTaskActive()
-		&& IsValid(PlayerController)
-		&& PlayerController == CompletionPlayer.Get())
-	{
-		CompletePendingTask(ActiveTaskId);
-	}
-}
-
 void UNBPendingTaskComponent::CancelPendingTask()
 {
 	if (IsPendingTaskActive() == false)
